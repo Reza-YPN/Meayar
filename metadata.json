@@ -1,0 +1,6 @@
+{
+  "name": "سامانه معیار",
+  "description": "سامانه معیار (مدیریت عملکرد و یکپارچگی سازی استاندارد رفتاری) - ارزیابی عملکرد، شایستگی‌ها و جانشین‌پروری فراجا",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
