@@ -244,7 +244,7 @@ export function StrategicReportView({
       <div className="bg-white rounded-3xl p-6 md:p-8 border border-slate-200 shadow-sm space-y-6">
         <div>
           <span className="text-[10px] font-black tracking-wider text-slate-400 uppercase block">
-            مدل‌سازی و پایش فرهنگ سازمانی و انضباطی در کلان‌شهرهای تابعه فراجا
+            مدل‌سازی و پایش فرهنگ سازمانی و انضباطی در استان‌ها و ادارات تابعه
           </span>
           <h2 className="text-lg md:text-xl font-black text-slate-900 mt-1">
             ابزار تحلیل تطبیقی هوشمند فراجا — مقایسه دو به دو لایه‌های فرهنگ سازمانی

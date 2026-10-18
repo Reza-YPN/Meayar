@@ -329,7 +329,10 @@ export function InteractiveCareerRoadmap({
                   return (
                     <div
                       key={role.name}
-                      onClick={() => onSelectRole(role, currentLevel)}
+                      onClick={() => {
+                        onSelectRole(role, currentLevel);
+                        onOpenDetailModal(role.name, currentLevel.title);
+                      }}
                       className={`p-4 rounded-2xl border text-right transition-all duration-200 relative group cursor-pointer flex flex-col justify-between shadow-sm select-none ${
                         isSelectedInPanel
                           ? "ring-2 ring-indigo-600 ring-offset-2 border-indigo-400 bg-white shadow-md"
@@ -537,7 +540,10 @@ export function InteractiveCareerRoadmap({
                       return (
                         <div
                           key={role.name}
-                          onClick={() => onSelectRole(role, level)}
+                          onClick={() => {
+                            onSelectRole(role, level);
+                            onOpenDetailModal(role.name, level.title);
+                          }}
                           className={`p-2.5 rounded-xl border text-xs leading-relaxed transition cursor-pointer select-none ${
                             isSelectedInPanel
                               ? "ring-2 ring-indigo-600 bg-white border-indigo-400 shadow-sm"

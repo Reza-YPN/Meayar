@@ -78,10 +78,10 @@ const NAV_GROUPS: NavGroup[] = [
         roles: ["employee", "evaluator", "manager"],
         description: "شناسنامه مشاغل فراجا، استخراج سطوح تسلط مهارتی و ماتریس ۵×۴.",
         subItems: [
-          { name: "شناسنامه مشاغل و شایستگی‌ها (گام ۱ تا ۳)", path: "/evaluator/competency-management", roles: ["employee"] },
-          { name: "مدیریت جامع مشاغل و شایستگی‌ها (گام ۱ تا ۵)", path: "/evaluator/competency-management", roles: ["evaluator", "manager"] },
-          { name: "ماتریس ارزیاب و سنجش عملکرد (گام ۴)", path: "/evaluator/competency-management?tab=evaluator-matrix", roles: ["evaluator", "manager"] },
-          { name: "گزارش جامع بهره‌وری پرسنل (گام ۵)", path: "/evaluator/employee-evaluation", roles: ["evaluator", "manager"] },
+          { name: "۱. شرح شغل‌ها و وظایف مصوب (گام اول)", path: "/evaluator/competency-management?tab=jobs", roles: ["employee", "evaluator", "manager"] },
+          { name: "۲. شایستگی‌های استخراج‌شده (گام دوم)", path: "/evaluator/competency-management?tab=competencies", roles: ["employee", "evaluator", "manager"] },
+          { name: "۳. شاخص‌های ارزیابی عملکرد مرتبط (گام سوم)", path: "/evaluator/competency-management?tab=kpis", roles: ["employee", "evaluator", "manager"] },
+          { name: "ماتریس ۵×۴ و گزارش‌های جامع (پیشرفته)", path: "/evaluator/competency-management?tab=advanced", roles: ["evaluator", "manager"] },
           { name: "ماتریس و کارنامه شایستگی‌های من", path: "/employee/competency-matrix", roles: ["employee"] },
         ]
       },
@@ -92,10 +92,11 @@ const NAV_GROUPS: NavGroup[] = [
         roles: ["employee", "evaluator", "manager"],
         description: "خوداظهاری فصلی، ارزیابی مستقیم، شاخص‌های کلیدی عملکرد (KPI) و رسیدگی به اعتراضات.",
         subItems: [
-          { name: "کارنامه عملکردی فصلی", path: "/performance", roles: ["employee", "evaluator", "manager"] },
-          { name: "نقاط نیازمند بهبود و خوداظهاری", path: "/performance/improvements", roles: ["employee"] },
-          { name: "ماتریس و کارنامه شایستگی‌های من", path: "/employee/competency-matrix", roles: ["employee"] },
-          { name: "گزارش جامع بهره‌وری کارکنان", path: "/evaluator/employee-evaluation", roles: ["evaluator", "manager"] },
+          { name: "۱. کارنامه عملکردی فصلی و شاخص‌ها", path: "/performance?tab=scorecard", roles: ["employee", "evaluator", "manager"] },
+          { name: "۲. داشبورد تحلیلی رشد بهره‌وری", path: "/performance?tab=productivity_growth", roles: ["employee", "evaluator", "manager"] },
+          { name: "۳. کارتابل خوداظهاری و رسیدگی به اعتراضات", path: "/performance?tab=objections", roles: ["employee", "evaluator", "manager"] },
+          { name: "۴. سوابق ارزیابی و مقایسه فصول", path: "/performance?tab=history", roles: ["employee", "evaluator", "manager"] },
+          { name: "گزارش جامع بهره‌وری کارکنان (ارزیاب/مدیر)", path: "/evaluator/employee-evaluation", roles: ["evaluator", "manager"] },
         ],
       },
       {
@@ -189,6 +190,8 @@ const NAV_GROUPS: NavGroup[] = [
     id: "specialized",
     title: "سامانه‌های تخصصی و آمایش",
     items: [
+      /*
+      // سامانه انتقالات موقتاً طبق درخواست هاید شد (کدها در پروژه باقی مانده است)
       {
         name: "سامانه انتقالات فراجا (DSS)",
         path: "/transfers",
@@ -202,6 +205,7 @@ const NAV_GROUPS: NavGroup[] = [
           { name: "داشبورد تصمیم‌سازی هوشمند DSS", path: "/transfers?tab=manager", roles: ["manager"] },
         ]
       },
+      */
       {
         name: "جذب و گزینش فراجا",
         path: "/recruitment",
@@ -232,11 +236,14 @@ const NAV_GROUPS: NavGroup[] = [
         name: "مسیر شغلی و جانشین‌پروری",
         path: "/performance/career-path",
         icon: Compass,
-        roles: ["employee", "manager"],
+        roles: ["employee", "evaluator", "manager"],
         description: "برنامه‌ریزی ارتقای رتبه و جایگاه، شناسایی استعدادهای فرماندهی.",
         subItems: [
-          { name: "مسیر شغلی من", path: "/performance/career-path", roles: ["employee", "manager"] },
-          { name: "شایستگی و جانشین‌پروری یگانی", path: "/performance/succession", roles: ["manager"] },
+          { name: "۱. نقشه کارراهه و اهداف شغلی", path: "/performance/career-path?tab=roadmap", roles: ["employee", "evaluator", "manager"] },
+          { name: "۲. پیش‌نیازها و گواهی‌های ارتقا", path: "/performance/career-path?tab=prerequisites", roles: ["employee", "evaluator", "manager"] },
+          { name: "۳. تایملاین ۴ ساله درجات نظامی", path: "/performance/career-path?tab=timeline", roles: ["employee", "evaluator", "manager"] },
+          { name: "۴. طرح جانشین‌پروری و استعدادها", path: "/performance/career-path?tab=succession", roles: ["employee", "evaluator", "manager"] },
+          { name: "۵. توصیه‌های شتاب‌دهی هوشمند", path: "/performance/career-path?tab=ai-insights", roles: ["employee", "evaluator", "manager"] },
         ],
       },
     ],
@@ -512,10 +519,19 @@ export function Layout({ children }: { children: ReactNode }) {
                         {!isCollapsed && hasSub && isOpen && (
                           <ul className="mt-1 space-y-0.5 pr-6 border-r-2 border-slate-200 mr-3">
                             {item.subItems!.map((subItem) => {
-                              const currentFullPath = `${location.pathname}${location.search}`;
-                              const isSubActive = subItem.path.includes("?")
-                                ? currentFullPath === subItem.path
-                                : location.pathname === subItem.path;
+                              const isSubActive = (() => {
+                                if (subItem.path.includes("?")) {
+                                  const [targetBase, targetQuery] = subItem.path.split("?");
+                                  if (location.pathname !== targetBase) return false;
+                                  const targetParams = new URLSearchParams(targetQuery);
+                                  const currentParams = new URLSearchParams(location.search);
+                                  for (const [key, val] of targetParams.entries()) {
+                                    if (currentParams.get(key) !== val) return false;
+                                  }
+                                  return true;
+                                }
+                                return location.pathname === subItem.path && (!location.search || !location.search.includes("tab="));
+                              })();
                               return (
                                 <li key={`${item.path}-${subItem.name}`}>
                                   <Link

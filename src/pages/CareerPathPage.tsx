@@ -1,9 +1,9 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { 
   Info, 
   Check, 
   ArrowLeft, 
-  ArrowDown, 
+  ArrowRight,
   Search, 
   Target, 
   Award, 
@@ -17,15 +17,23 @@ import {
   Eye,
   SlidersHorizontal,
   HelpCircle,
-  Layers
+  Layers,
+  Compass,
+  Briefcase,
+  Shield,
+  CheckCircle2,
+  Users
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { CareerRoleDetailModal } from "../components/CareerRoleDetailModal";
 import { CareerPrerequisitesPanel } from "../components/CareerPrerequisitesPanel";
 import { CareerSmartRecommendations } from "../components/CareerSmartRecommendations";
 import { RankPromotionTimeline } from "../components/RankPromotionTimeline";
 import { InteractiveCareerRoadmap } from "../components/InteractiveCareerRoadmap";
+import { SuccessionReadinessPanel } from "../components/SuccessionReadinessPanel";
 import { ROLE_PREREQUISITES_DATA } from "../data/careerPrerequisitesData";
+import { competencyService } from "../services/competencyService";
 
 interface CareerRole {
   name: string;
@@ -117,8 +125,79 @@ const CAREER_LEVELS: CareerLevel[] = [
   }
 ];
 
+export type CareerSubTab = "roadmap" | "prerequisites" | "timeline" | "succession" | "ai-insights";
+
+const SUB_TABS: { id: CareerSubTab; title: string; shortTitle: string; icon: React.ElementType; desc: string; stepNumber: number }[] = [
+  { 
+    id: "roadmap", 
+    title: "۱. نقشه کارراهه و مسیر شغلی", 
+    shortTitle: "نقشه کارراهه", 
+    icon: Target, 
+    desc: "۶ سطح ارتقای شغلی از گشت پیاده تا فرماندهی کلانتری", 
+    stepNumber: 1 
+  },
+  { 
+    id: "prerequisites", 
+    title: "۲. پیش‌نیازها و گواهی‌های ارتقا", 
+    shortTitle: "پیش‌نیازها", 
+    icon: Layers, 
+    desc: "دوره‌ها، آزمون‌ها و معیارهای احراز سمت شغلی هدف", 
+    stepNumber: 2 
+  },
+  { 
+    id: "timeline", 
+    title: "۳. گاه‌شمار درجات نظامی (ماده ۷۸)", 
+    shortTitle: "درجات نظامی", 
+    icon: Clock, 
+    desc: "توقف قانونی ۴ ساله و مشاغل متناظر در کلانتری", 
+    stepNumber: 3 
+  },
+  { 
+    id: "succession", 
+    title: "۴. طرح جانشین‌پروری و استعدادها", 
+    shortTitle: "جانشین‌پروری", 
+    icon: Compass, 
+    desc: "سنجش درصد انطباق شایستگی و آمادگی تصدی رده‌های کلیدی", 
+    stepNumber: 4 
+  },
+  { 
+    id: "ai-insights", 
+    title: "۵. توصیه‌های شتاب‌دهی هوشمند", 
+    shortTitle: "توصیه‌های هوشمند", 
+    icon: Sparkles, 
+    desc: "خلاصه تحلیلی موجز هوش مصنوعی و مهارت‌های اولویت‌دار", 
+    stepNumber: 5 
+  },
+];
+
 export function CareerPathPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const rawTab = searchParams.get("tab") as CareerSubTab | null;
+
+  const resolveTab = (t: string | null): CareerSubTab => {
+    if (t === "prerequisites" || t === "timeline" || t === "succession" || t === "ai-insights") {
+      return t;
+    }
+    return "roadmap";
+  };
+
+  const [activeTab, setActiveTab] = useState<CareerSubTab>(() => resolveTab(rawTab));
+
+  // Sync tab with URL searchParams
+  useEffect(() => {
+    const t = searchParams.get("tab");
+    if (t) {
+      setActiveTab(resolveTab(t));
+    }
+  }, [searchParams]);
+
+  const handleTabChange = (newTab: CareerSubTab) => {
+    setActiveTab(newTab);
+    setSearchParams({ tab: newTab });
+  };
+
   const [searchTerm, setSearchTerm] = useState("");
+  
   // Default selected targets matching motor patrol path
   const [targetRoles, setTargetRoles] = useState<string[]>([
     "سرتیم گشت موتوری واکنش سریع ۱۱۰",
@@ -139,10 +218,8 @@ export function CareerPathPage() {
   } | null>(null);
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
-  const [activeSection, setActiveSection] = useState<"all" | "roadmap" | "timeline" | "skills">("all");
 
   const handleToggleTarget = (roleName: string) => {
-    // Find level for this role
     let foundLevel: CareerLevel | undefined;
     for (const lvl of CAREER_LEVELS) {
       if (lvl.roles.some(r => r.name === roleName)) {
@@ -158,7 +235,7 @@ export function CareerPathPage() {
 
     if (targetRoles.includes(roleName)) {
       setTargetRoles(targetRoles.filter(r => r !== roleName));
-      showToast(`سمت "${roleName}" از لیست اهداف شما حذف شد.`);
+      showToast(`سمت «${roleName}» از اهداف شغلی شما خارج شد.`);
     } else {
       if (foundLevel) {
         const otherRolesInLevel = foundLevel.roles.map(r => r.name);
@@ -167,17 +244,26 @@ export function CareerPathPage() {
       } else {
         setTargetRoles([...targetRoles, roleName]);
       }
-      showToast(`سمت "${roleName}" به عنوان هدف ترجیحی شما ثبت شد!`);
+      showToast(`سمت «${roleName}» با موفقیت به عنوان هدف ترجیحی شما ثبت شد!`);
     }
   };
 
   const handleRoleCardClick = (role: CareerRole, level: CareerLevel) => {
-    // Update currently inspected role in live prerequisites panel
     setSelectedRoleName(role.name);
+    // Open full detail modal directly on click
+    setModalRoleInfo({ roleName: role.name, levelTitle: level.title });
+  };
 
-    if (level.statusType === "future") {
-      handleToggleTarget(role.name);
+  const handleSelectJobFromTimeline = (jobTitle: string) => {
+    // Look up level or default to level 3/4
+    let matchedLevelTitle = "مشاغل سازمانی کلانتری ۱۰۳";
+    for (const lvl of CAREER_LEVELS) {
+      if (lvl.roles.some(r => r.name.includes(jobTitle) || jobTitle.includes(r.name))) {
+        matchedLevelTitle = lvl.title;
+        break;
+      }
     }
+    setModalRoleInfo({ roleName: jobTitle, levelTitle: matchedLevelTitle });
   };
 
   const showToast = (message: string) => {
@@ -187,18 +273,11 @@ export function CareerPathPage() {
     }, 4000);
   };
 
-  const findLevelTitle = (roleName: string) => {
-    for (const lvl of CAREER_LEVELS) {
-      if (lvl.roles.some(r => r.name === roleName)) {
-        return lvl.title;
-      }
-    }
-    return "سطح تخصصی فراجا";
-  };
+  const currentTabIndex = SUB_TABS.findIndex(t => t.id === activeTab);
 
   return (
     <div className="space-y-6 text-right relative" dir="rtl">
-      {/* Sticky Job & Identity Box (باکس شغل ثابت و شفاف) */}
+      {/* 1. Identity & Current Active Job Sticky Banner */}
       <div className="sticky top-2 z-40 bg-slate-900 text-white rounded-2xl p-4 shadow-xl border border-slate-700/80 backdrop-blur-md flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-3 w-full sm:w-auto">
           <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-indigo-600 to-indigo-500 text-white flex items-center justify-center shadow-lg shrink-0 text-xl">
@@ -211,7 +290,7 @@ export function CareerPathPage() {
               </span>
               <span className="text-xs text-slate-300 font-bold">ستوان‌دوم محمدرضا یزدان پناه</span>
             </div>
-            <h3 className="text-base font-black text-white mt-0.5">
+            <h3 className="text-sm sm:text-base font-black text-white mt-0.5">
               مامور ارشد گشت انتظامی و فوریت‌های ۱۱۰ (گشت موتوری)
             </h3>
           </div>
@@ -229,47 +308,93 @@ export function CareerPathPage() {
         </div>
       </div>
 
-      {/* Page Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white rounded-2xl p-6 border border-slate-200 shadow-sm">
-        <div>
-          <h2 className="text-xl font-black text-[#1E293B] flex items-center gap-2">
-            <Target className="w-6 h-6 text-indigo-600 animate-pulse" />
-            مسیر ارتقای شغلی و جانشین‌پروری (کارراهه هوشمند)
-          </h2>
-          <p className="text-xs text-slate-500 mt-1">
-            با کلیک بر روی هر سمت شغلی، پیش‌نیازهای اختصاصی و حوزه‌های مهارتی آن به‌صورت بلادرنگ تغییر یافته و در پنل زیر نمایش داده می‌شوند.
-          </p>
+      {/* 2. Structured Sub-Tab Stepper (تفکیک منظم و ساب‌تب‌ها جهت خلوت‌سازی و جلوگیری از سردرگمی) */}
+      <div className="bg-white rounded-3xl border border-slate-200/90 p-5 shadow-2xs space-y-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-black px-2.5 py-0.5 rounded-full bg-indigo-600 text-white">
+                سامانه کارراهه هوشمند فراجا
+              </span>
+              <span className="text-xs font-bold text-slate-500">
+                تفکیک مرحله‌ای مسیر پیشرفت شغلی و جانشین‌پروری
+              </span>
+            </div>
+            <h1 className="text-base sm:text-lg font-black text-slate-900 mt-1">
+              برنامه‌ریزی ارتقای رتبه، پیش‌نیازهای تصدی و استعدادهای جانشین‌پروری
+            </h1>
+          </div>
+
+          <div className="flex items-center gap-2 self-start md:self-auto text-xs font-bold text-slate-600 bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200">
+            <span>بخش فعال:</span>
+            <span className="text-indigo-700 font-black">
+              {SUB_TABS[currentTabIndex]?.title}
+            </span>
+          </div>
         </div>
 
-        {/* Search Box */}
-        <div className="relative w-full md:w-80">
-          <input
-            type="text"
-            placeholder="جستجوی سمت شغلی..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-3 pr-10 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500 focus:bg-white transition-colors"
-          />
-          <Search className="w-4 h-4 text-slate-400 absolute top-2.5 right-3" />
-          {searchTerm && (
-            <button 
-              onClick={() => setSearchTerm("")}
-              className="absolute left-3 top-2.5 hover:text-slate-600 text-slate-400 cursor-pointer"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
+        {/* 5 Distinct Sub-Tabs */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+          {SUB_TABS.map((tab, idx) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
+            const isPassed = idx < currentTabIndex;
+
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => handleTabChange(tab.id)}
+                className={`p-3 rounded-2xl border text-right transition-all flex flex-col justify-between gap-2 cursor-pointer select-none relative group ${
+                  isActive
+                    ? "bg-[#4455A5] text-white border-indigo-700 shadow-md ring-2 ring-indigo-300"
+                    : "bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200 hover:border-slate-300"
+                }`}
+              >
+                <div className="flex items-center justify-between w-full">
+                  <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                    isActive 
+                      ? "bg-white/20 text-white" 
+                      : isPassed
+                      ? "bg-emerald-100 text-emerald-800"
+                      : "bg-slate-200 text-slate-700"
+                  }`}>
+                    گام {tab.stepNumber}
+                  </span>
+
+                  <div className={`w-7 h-7 rounded-lg flex items-center justify-center ${
+                    isActive ? "bg-white/20 text-white" : "bg-white text-indigo-600 border border-slate-200"
+                  }`}>
+                    <Icon className="w-4 h-4" />
+                  </div>
+                </div>
+
+                <div>
+                  <h4 className={`text-xs font-black line-clamp-1 ${isActive ? "text-white" : "text-slate-900"}`}>
+                    {tab.shortTitle}
+                  </h4>
+                  <p className={`text-[10px] line-clamp-1 mt-0.5 ${isActive ? "text-indigo-100" : "text-slate-500"}`}>
+                    {tab.desc}
+                  </p>
+                </div>
+
+                {isActive && (
+                  <div className="w-full h-1 bg-amber-400 rounded-full mt-1" />
+                )}
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {/* Interactive Top Notification Banner */}
+      {/* Toast Notification */}
       <AnimatePresence>
         {toastMessage && (
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
-            className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-4 rounded-xl text-xs font-bold flex items-center justify-between shadow-sm"
+            className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-4 rounded-2xl text-xs font-bold flex items-center justify-between shadow-sm"
           >
             <div className="flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-emerald-600" />
@@ -282,43 +407,35 @@ export function CareerPathPage() {
         )}
       </AnimatePresence>
 
-      {/* Top Section Navigation Bar (کاهش اسکرول طولانی و تفکیک شفاف) */}
-      <div className="flex items-center justify-between gap-3 bg-white p-2.5 rounded-2xl border border-slate-200 shadow-sm flex-wrap">
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <span className="text-xs font-bold text-slate-500 ml-2">نمایش بخش‌ها:</span>
-          {[
-            { id: "all", label: "نمایش همه بخش‌ها", icon: Layers },
-            { id: "roadmap", label: "۱. نمودار کارراهه و پیش‌نیازها", icon: Target },
-            { id: "timeline", label: "۲. تایملاین ۴ ساله درجه نظامی", icon: Clock },
-            { id: "skills", label: "۳. مهارت‌های پیشنهادی هوش مصنوعی", icon: Sparkles },
-          ].map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeSection === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveSection(tab.id as any)}
-                className={`text-xs font-bold px-3 py-1.5 rounded-xl transition cursor-pointer flex items-center gap-1.5 border ${
-                  isActive
-                    ? "bg-indigo-600 text-white border-indigo-700 shadow-sm"
-                    : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
-                }`}
-              >
-                <Icon className="w-3.5 h-3.5" />
-                <span>{tab.label}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        <span className="text-[11px] text-slate-400 font-bold hidden md:inline">
-          روی هر سمت کلیک کنید تا پیش‌نیازهای اختصاصی آن لود شود
-        </span>
-      </div>
-
-      {/* 1. Career Roadmap & Live Prerequisites Panel */}
-      {(activeSection === "all" || activeSection === "roadmap") && (
+      {/* ======================================================== */}
+      {/* SUB-TAB 1: ROADMAP & CAREER TARGETS                      */}
+      {/* ======================================================== */}
+      {activeTab === "roadmap" && (
         <div className="space-y-6">
+          {/* Quick Search for Roles */}
+          <div className="bg-white rounded-2xl p-4 border border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 shadow-2xs">
+            <div className="flex items-center gap-2 text-xs text-slate-600 font-bold">
+              <Target className="w-4 h-4 text-indigo-600" />
+              <span>روی هر سمت یا شغل کلیک نمایید تا شناسنامه و پیش‌نیازهای رسمی آن نمایش داده شود.</span>
+            </div>
+
+            <div className="relative w-full sm:w-72">
+              <Search className="w-4 h-4 text-slate-400 absolute right-3 top-2.5" />
+              <input
+                type="text"
+                placeholder="جستجوی عنوان شغل در کارراهه..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-3 pr-9 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:border-indigo-500"
+              />
+              {searchTerm && (
+                <button onClick={() => setSearchTerm("")} className="absolute left-3 top-2 text-slate-400 hover:text-slate-600">
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
+
           <InteractiveCareerRoadmap
             levels={CAREER_LEVELS}
             selectedRoleName={selectedRoleName}
@@ -331,7 +448,56 @@ export function CareerPathPage() {
             searchTerm={searchTerm}
           />
 
-          {/* DYNAMIC LIVE PREREQUISITES PANEL BY SELECTED ROLE & DOMAINS */}
+          {/* Stepper Footer Action */}
+          <div className="bg-white rounded-2xl p-4 border border-slate-200 flex items-center justify-between gap-3 shadow-2xs">
+            <div className="text-xs text-slate-600 font-medium">
+              <span>گام بعدی: </span>
+              <strong className="text-slate-900 font-bold">بررسی پیش‌نیازها و گواهی‌های لازم برای سمت هدف</strong>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => handleTabChange("prerequisites")}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-sm transition cursor-pointer"
+            >
+              <span>رفتن به گام ۲: پیش‌نیازها و گواهی‌ها</span>
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* SUB-TAB 2: PREREQUISITES & CERTIFICATIONS                */}
+      {/* ======================================================== */}
+      {activeTab === "prerequisites" && (
+        <div className="space-y-6">
+          <div className="bg-white rounded-2xl p-5 border border-slate-200 space-y-2 shadow-2xs">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                <Layers className="w-4 h-4 text-indigo-600" />
+                <span>پیش‌نیازهای احراز جایگاه انتخابی: <span className="text-indigo-600 font-black">«{selectedRoleName}»</span></span>
+              </h3>
+
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-500 font-bold">تغییر سمت تحت بررسی:</span>
+                <select
+                  value={selectedRoleName}
+                  onChange={(e) => setSelectedRoleName(e.target.value)}
+                  className="text-xs font-bold bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 focus:outline-none focus:border-indigo-500"
+                >
+                  {CAREER_LEVELS.flatMap(l => l.roles).map(r => (
+                    <option key={r.name} value={r.name}>{r.name}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-500 leading-relaxed">
+              جهت ارتقا به این رده، احراز گواهی‌های تیراندازی و انضباطی، دوره‌های تخصصی رسته، و نمره حدنصاب کارنامه عملکرد الزامی است.
+            </p>
+          </div>
+
           <CareerPrerequisitesPanel
             selectedRoleName={selectedRoleName}
             onSelectRole={(role) => setSelectedRoleName(role)}
@@ -341,24 +507,171 @@ export function CareerPathPage() {
               setModalRoleInfo({ roleName: role, levelTitle });
             }}
           />
+
+          {/* Stepper Navigation Buttons */}
+          <div className="bg-white rounded-2xl p-4 border border-slate-200 flex items-center justify-between gap-3 shadow-2xs">
+            <button
+              type="button"
+              onClick={() => handleTabChange("roadmap")}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition cursor-pointer"
+            >
+              <ArrowRight className="w-4 h-4" />
+              <span>بازگشت به گام ۱: نقشه کارراهه</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleTabChange("timeline")}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-sm transition cursor-pointer"
+            >
+              <span>رفتن به گام ۳: گاه‌شمار درجات نظامی</span>
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       )}
 
-      {/* 2. Statutory 4-Year Military Rank Promotion Timeline */}
-      {(activeSection === "all" || activeSection === "timeline") && (
-        <div className="space-y-3">
-          <RankPromotionTimeline variant="light" showTitle={true} className="shadow-sm border-slate-200" />
+      {/* ======================================================== */}
+      {/* SUB-TAB 3: 4-YEAR STATUTORY MILITARY RANK TIMELINE      */}
+      {/* ======================================================== */}
+      {activeTab === "timeline" && (
+        <div className="space-y-6">
+          <div className="bg-white rounded-2xl p-5 border border-slate-200 space-y-2 shadow-2xs">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                <Clock className="w-4 h-4 text-indigo-600" />
+                <span>تایملاین سنواتی ترفیع درجات انتظامی (ماده ۷۸ و ۸۲ قانون استخدام فراجا)</span>
+              </h3>
+              <span className="text-xs bg-amber-50 text-amber-900 border border-amber-200 font-black px-2.5 py-1 rounded-full">
+                توقف ۴ سال تمام در هر درجه
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 leading-relaxed">
+              با انتخاب هر درجه، مشاغل سازمانی متناظر در کلانتری ۱۰۳ نمایش داده می‌شود. با کلیک بر روی هر یک از مشاغل سازمانی، شناسنامه کامل و شرح وظایف مصوب آن لود خواهد شد.
+            </p>
+          </div>
+
+          <RankPromotionTimeline 
+            variant="light" 
+            showTitle={true} 
+            className="shadow-sm border-slate-200" 
+            onSelectJob={handleSelectJobFromTimeline}
+          />
+
+          {/* Stepper Navigation Buttons */}
+          <div className="bg-white rounded-2xl p-4 border border-slate-200 flex items-center justify-between gap-3 shadow-2xs">
+            <button
+              type="button"
+              onClick={() => handleTabChange("prerequisites")}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition cursor-pointer"
+            >
+              <ArrowRight className="w-4 h-4" />
+              <span>بازگشت به گام ۲: پیش‌نیازها</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleTabChange("succession")}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-sm transition cursor-pointer"
+            >
+              <span>رفتن به گام ۴: طرح جانشین‌پروری یگانی</span>
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+          </div>
         </div>
       )}
 
-      {/* 3. Intelligent AI Skill Recommendations for Next Promotion */}
-      {(activeSection === "all" || activeSection === "skills") && (
-        <div className="space-y-3">
+      {/* ======================================================== */}
+      {/* SUB-TAB 4: SUCCESSION PLANNING & TALENT POOL            */}
+      {/* ======================================================== */}
+      {activeTab === "succession" && (
+        <div className="space-y-6">
+          <div className="bg-white rounded-2xl p-5 border border-slate-200 space-y-2 shadow-2xs">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                <Compass className="w-4 h-4 text-emerald-600" />
+                <span>سامانه پایش استعدادها و جانشین‌پروری یگانی (Succession Readiness)</span>
+              </h3>
+              <span className="text-xs bg-emerald-50 text-emerald-800 border border-emerald-200 font-black px-2.5 py-1 rounded-full">
+                کلانتری ۱۰۳ گاندی تهران
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 leading-relaxed">
+              تحلیل میزان انطباق شایستگی‌های پرسنل با رده‌های کلیدی فرماندهی و عملیات کلانتری. سمت‌های نیازمند جانشین با شاخص‌های آمادگی فوری، کوتاه‌مدت و بلندمدت تفکیک شده‌اند.
+            </p>
+          </div>
+
+          <SuccessionReadinessPanel />
+
+          {/* Stepper Navigation Buttons */}
+          <div className="bg-white rounded-2xl p-4 border border-slate-200 flex items-center justify-between gap-3 shadow-2xs">
+            <button
+              type="button"
+              onClick={() => handleTabChange("timeline")}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition cursor-pointer"
+            >
+              <ArrowRight className="w-4 h-4" />
+              <span>بازگشت به گام ۳: درجات نظامی</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleTabChange("ai-insights")}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-sm transition cursor-pointer"
+            >
+              <span>رفتن به گام ۵: توصیه‌های هوشمند</span>
+              <ArrowLeft className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* SUB-TAB 5: SMART AI ACCELERATION RECOMMENDATIONS         */}
+      {/* ======================================================== */}
+      {activeTab === "ai-insights" && (
+        <div className="space-y-6">
+          <div className="bg-white rounded-2xl p-5 border border-slate-200 space-y-2 shadow-2xs">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-indigo-600" />
+                <span>توصیه‌های شتاب‌دهی هوشمند کارراهه (خلاصه تحلیلی موجز)</span>
+              </h3>
+              <span className="text-[11px] bg-indigo-50 text-indigo-700 border border-indigo-200 font-bold px-2.5 py-1 rounded-full">
+                تحلیل هوش مصنوعی • کانون ارزیابی فراجا
+              </span>
+            </div>
+            <p className="text-xs text-slate-500 leading-relaxed">
+              بر مبنای شکاف‌های ارزیابی عملکرد و سمت‌های هدف انتخابی شما، مهارت‌ها و دوره‌های دارای بالاترین ضریب اثربخشی در ارتقای رتبه سازمانی استخراج شده‌اند.
+            </p>
+          </div>
+
           <CareerSmartRecommendations />
+
+          {/* Stepper Navigation Buttons */}
+          <div className="bg-white rounded-2xl p-4 border border-slate-200 flex items-center justify-between gap-3 shadow-2xs">
+            <button
+              type="button"
+              onClick={() => handleTabChange("succession")}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition cursor-pointer"
+            >
+              <ArrowRight className="w-4 h-4" />
+              <span>بازگشت به گام ۴: جانشین‌پروری</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleTabChange("roadmap")}
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition cursor-pointer"
+            >
+              <CheckCircle2 className="w-4 h-4" />
+              <span>تکمیل و بازگشت به نقشه کارراهه</span>
+            </button>
+          </div>
         </div>
       )}
 
-      {/* Full Detailed Modal with Domain Breakdown */}
+      {/* Global Detailed Modal with Domain Breakdown, Approved Duties, and Competencies */}
       <AnimatePresence>
         {modalRoleInfo && (
           <CareerRoleDetailModal
@@ -373,49 +686,25 @@ export function CareerPathPage() {
         )}
       </AnimatePresence>
 
-      {/* Information Cards Bento Grid */}
+      {/* Bento Grid Policy Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-indigo-50/50 border border-indigo-100 rounded-2xl p-5 flex items-start gap-3">
+        <div className="bg-indigo-50/50 border border-indigo-100 rounded-2xl p-4 flex items-start gap-3">
           <Info className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />
           <div>
-            <h4 className="font-extrabold text-indigo-950 text-xs">قوانین ارتقای طلایی (ویژه)</h4>
+            <h4 className="font-extrabold text-indigo-950 text-xs">قوانین ارتقای طلایی (ارشدیت تشویقی)</h4>
             <p className="text-[11px] text-indigo-800/80 leading-relaxed mt-1">
-              در صورتی که برای سه دوره‌ی عملکردی مداوم، کارنامه عالی (طلایی) کسب کنید، می‌توانید زمان رسیدن به ارتقا را تا ۵۰٪ کوتاه تر کرده و به عنوان کارکنان نخبه در برنامه شتاب‌دهی رده‌ها قرار بگیرید.
+              در صورت کسب کارنامه عالی در سه دوره متوالی، امکان اعمال تا ۶ ماه ارشدیت تشویقی در کمیسیون ترفیعات فراجا طبق ماده ۱۶۴ وجود دارد.
             </p>
           </div>
         </div>
 
-        <div className="bg-emerald-50/50 border border-emerald-100 rounded-2xl p-5 flex items-start gap-3">
+        <div className="bg-emerald-50/50 border border-emerald-100 rounded-2xl p-4 flex items-start gap-3">
           <Sparkles className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
           <div>
-            <h4 className="font-extrabold text-emerald-950 text-xs">برنامه جانشین‌پروری یگان‌ها</h4>
+            <h4 className="font-extrabold text-emerald-950 text-xs">نشان جانشین‌پروری سازمانی</h4>
             <p className="text-[11px] text-emerald-800/80 leading-relaxed mt-1">
-              سمت‌هایی که نشان "برنامه جانشین پروری" دارند، به عنوان گرید‌های کلیدی و نیازمند کادر مجرب آینده شناخته می‌شوند. انتخاب این رده‌ها، شما را در دوره‌های توسعه سریع فاوای فراجا عضو خواهد کرد.
+              سمت‌هایی که نشان «برنامه جانشین‌پروری» دارند، اولویت انتصاب فرماندهی بوده و دوره‌های عالی فراجا برای آنان برنامه‌ریزی می‌گردد.
             </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Map Legend */}
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6 flex flex-col sm:flex-row items-center justify-between gap-4">
-        <h3 className="font-extrabold text-slate-800 text-xs">راهنمای وضعیت خانه‌ها و کادرهای مسیر شغلی:</h3>
-        
-        <div className="flex flex-wrap items-center gap-4 text-xs font-bold text-slate-700">
-          <div className="flex items-center gap-2">
-            <span className="w-4 h-4 bg-indigo-50 border border-indigo-100 rounded"></span>
-            <span>سمت‌های گذرانده شده</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="w-4 h-4 bg-[#4455A5] border border-indigo-700 rounded"></span>
-            <span>سمت فعلی شما</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="w-4 h-4 bg-emerald-600 border border-emerald-700 rounded"></span>
-            <span>سمت‌های هدف ترجیحی شما</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="w-4 h-4 bg-white border border-slate-200 rounded"></span>
-            <span>سمت‌های عمومی قابل احراز</span>
           </div>
         </div>
       </div>

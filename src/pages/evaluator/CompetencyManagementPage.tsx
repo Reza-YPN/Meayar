@@ -1,65 +1,67 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Layers, Briefcase, Network, Sliders, BarChart2, CheckCircle2, ChevronLeft, Shield } from 'lucide-react';
+import {
+  Briefcase,
+  Award,
+  BarChart2,
+  Layers,
+  ChevronLeft,
+  CheckCircle2,
+  Building2,
+  Shield,
+  ArrowLeft
+} from 'lucide-react';
 import { useRole } from '../../context/RoleContext';
-import { JobManagementTab } from '../../components/competency/JobManagementTab';
-import { CompetencyMappingTab } from '../../components/competency/CompetencyMappingTab';
-import { CompetencyMatrixTab } from '../../components/competency/CompetencyMatrixTab';
-import { EvaluatorCompetencyMatrixTab } from '../../components/competency/EvaluatorCompetencyMatrixTab';
-import { EmployeeEvaluationTab } from '../../components/competency/EmployeeEvaluationTab';
+import { competencyService } from '../../services/competencyService';
+import { SimpleJobDescriptionsStep } from '../../components/competency/SimpleJobDescriptionsStep';
+import { SimpleExtractedCompetenciesStep } from '../../components/competency/SimpleExtractedCompetenciesStep';
+import { SimplePerformanceIndicatorsStep } from '../../components/competency/SimplePerformanceIndicatorsStep';
+import { AdvancedMatrixSection } from '../../components/competency/AdvancedMatrixSection';
 
-type Tab = 'jobs' | 'mapping' | 'matrix' | 'evaluator-matrix' | 'evaluation';
+export type SequentialTab = 'jobs' | 'competencies' | 'kpis' | 'advanced';
 
-interface TabItem {
-  id: Tab;
-  step: string;
+interface SequentialTabItem {
+  id: SequentialTab;
+  stepNumber: string;
   title: string;
   shortDesc: string;
   icon: React.ComponentType<{ className?: string }>;
-  badgeColor: string;
+  accentColor: string;
 }
 
-const TABS: TabItem[] = [
+const ORDERED_TABS: SequentialTabItem[] = [
   {
     id: 'jobs',
-    step: 'گام ۱',
-    title: 'شرح شغل',
-    shortDesc: '۴۶ شغل و شرح وظایف مصوب',
+    stepNumber: 'گام ۱',
+    title: 'شرح شغل‌ها',
+    shortDesc: 'شناسنامه و شرح وظایف مصوب',
     icon: Briefcase,
-    badgeColor: 'text-indigo-600 bg-indigo-50 border-indigo-200'
+    accentColor: 'indigo',
   },
   {
-    id: 'mapping',
-    step: 'گام ۲',
-    title: 'نگاشت و استخراج شایستگی‌ها',
-    shortDesc: 'استخراج ۵ سطح اثرگذاری',
-    icon: Network,
-    badgeColor: 'text-purple-600 bg-purple-50 border-purple-200'
+    id: 'competencies',
+    stepNumber: 'گام ۲',
+    title: 'شایستگی‌های استخراج‌شده',
+    shortDesc: 'استخراج مستقیم از وظایف شغل',
+    icon: Award,
+    accentColor: 'purple',
   },
   {
-    id: 'matrix',
-    step: 'گام ۳',
-    title: 'ماتریس شایستگی‌ها',
-    shortDesc: 'ماتریس تطابق ابعاد (۵×۴)',
-    icon: Layers,
-    badgeColor: 'text-sky-600 bg-sky-50 border-sky-200'
-  },
-  {
-    id: 'evaluator-matrix',
-    step: 'گام ۴',
-    title: 'ماتریس ارزیاب',
-    shortDesc: 'ارزیابی برخط و ثبت سطوح ۱ تا ۵',
-    icon: Sliders,
-    badgeColor: 'text-emerald-600 bg-emerald-50 border-emerald-200'
-  },
-  {
-    id: 'evaluation',
-    step: 'گام ۵',
-    title: 'گزارش جامع بهره‌وری',
-    shortDesc: 'تحلیل نهایی، رتبه‌بندی و گزارشات',
+    id: 'kpis',
+    stepNumber: 'گام ۳',
+    title: 'شاخص‌های ارزیابی عملکرد مرتبط',
+    shortDesc: 'فرمول، سنجه‌های KPI و نمره عملکرد',
     icon: BarChart2,
-    badgeColor: 'text-amber-600 bg-amber-50 border-amber-200'
-  }
+    accentColor: 'emerald',
+  },
+  {
+    id: 'advanced',
+    stepNumber: 'تکمیلی',
+    title: 'ماتریس و گزارش‌های جامع',
+    shortDesc: 'ماتریس ۵×۴، ارزیاب و بهره‌وری',
+    icon: Layers,
+    accentColor: 'slate',
+  },
 ];
 
 export function CompetencyManagementPage() {
@@ -67,69 +69,87 @@ export function CompetencyManagementPage() {
   const isEmployee = role === 'employee';
 
   const [searchParams, setSearchParams] = useSearchParams();
-  const rawTab = (searchParams.get('tab') as Tab) || 'jobs';
-  // If employee requested step 4 or 5 via URL, force back to jobs
-  const initialTab = (isEmployee && (rawTab === 'evaluator-matrix' || rawTab === 'evaluation')) ? 'jobs' : rawTab;
-  const [activeTab, setActiveTab] = useState<Tab>(initialTab);
+  const rawParamTab = searchParams.get('tab') as string;
 
-  // Filter tabs: Personnel must NOT see Step 4 and Step 5
-  const visibleTabs = useMemo(() => {
-    if (isEmployee) {
-      return TABS.filter(t => t.id !== 'evaluator-matrix' && t.id !== 'evaluation');
-    }
-    return TABS;
-  }, [isEmployee]);
-
-  // Guard against direct URL access to Step 4 and Step 5 for employee
-  useEffect(() => {
-    if (isEmployee && (activeTab === 'evaluator-matrix' || activeTab === 'evaluation')) {
-      setActiveTab('jobs');
-      setSearchParams({ tab: 'jobs' });
-    }
-  }, [isEmployee, activeTab, setSearchParams]);
-
-  const handleTabSwitch = (tab: Tab) => {
-    if (isEmployee && (tab === 'evaluator-matrix' || tab === 'evaluation')) {
-      return;
-    }
-    setActiveTab(tab);
-    setSearchParams({ tab });
+  // Map legacy tabs to new sequential structure
+  const resolveTab = (tabParam: string | null): SequentialTab => {
+    if (!tabParam) return 'jobs';
+    if (tabParam === 'jobs') return 'jobs';
+    if (tabParam === 'competencies' || tabParam === 'mapping') return 'competencies';
+    if (tabParam === 'kpis' || tabParam === 'evaluator-matrix') return 'kpis';
+    if (tabParam === 'matrix' || tabParam === 'evaluation' || tabParam === 'advanced') return 'advanced';
+    return 'jobs';
   };
 
-  const activeIndex = visibleTabs.findIndex(t => t.id === activeTab);
+  const initialTab = resolveTab(rawParamTab);
+  const [activeTab, setActiveTab] = useState<SequentialTab>(initialTab);
+
+  // Synchronized selected job ID across all steps
+  const initialJobs = useMemo(() => competencyService.getJobs(), []);
+  const [selectedJobId, setSelectedJobId] = useState<string>(
+    searchParams.get('jobId') || initialJobs[0]?.id || 'j_prev_moto_patrol_lead'
+  );
+
+  // CRITICAL FIX: Sync activeTab and selectedJobId when searchParams changes (e.g. sidebar navigation clicks)
+  useEffect(() => {
+    const tabFromUrl = searchParams.get('tab');
+    if (tabFromUrl) {
+      setActiveTab(resolveTab(tabFromUrl));
+    }
+    const jobFromUrl = searchParams.get('jobId');
+    if (jobFromUrl) {
+      setSelectedJobId(jobFromUrl);
+    }
+  }, [searchParams]);
+
+  const handleTabSwitch = (tab: SequentialTab) => {
+    setActiveTab(tab);
+    setSearchParams({ tab, jobId: selectedJobId });
+  };
+
+  const handleSelectJob = (jobId: string) => {
+    setSelectedJobId(jobId);
+    setSearchParams({ tab: activeTab, jobId });
+  };
+
+  const activeIndex = ORDERED_TABS.findIndex((t) => t.id === activeTab);
 
   return (
     <div className="space-y-6" dir="rtl">
-      {/* Header & Clean Navigation */}
+      
+      {/* Header and Step Progression Stepper */}
       <div className="bg-white rounded-3xl border border-slate-200/90 p-5 md:p-6 shadow-2xs space-y-5">
         
-        {/* Title and High-Level Context */}
+        {/* Title and Purpose */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-4 border-b border-slate-100">
           <div>
             <div className="flex items-center gap-2">
               <span className="text-[11px] font-black px-2.5 py-0.5 rounded-full bg-slate-900 text-white">
                 کلانتری ۱۰۳ گاندی
               </span>
-              <span className="text-xs text-slate-400 font-bold">
-                {isEmployee ? 'فرآیند ۳ مرحله‌ای شناسنامه و ماتریس شایستگی' : 'فرآیند ۵ مرحله‌ای استاندارد ارزیابی و شایستگی'}
+              <span className="text-xs text-indigo-700 font-bold bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-200">
+                سیستم گام‌به‌گام و مرتب ارزیابی عملکرد
               </span>
             </div>
-            <h1 className="text-base md:text-lg font-black text-slate-900 mt-1.5">
-              سامانه جامع مدیریت مشاغل، ماتریس شایستگی و ارزیابی عملکرد فراجا
+            <h1 className="text-base md:text-xl font-black text-slate-900 mt-2">
+              فرآیند سه‌گانه: شرح شغل ⬅️ شایستگی‌های استخراج‌شده ⬅️ شاخص‌های ارزیابی عملکرد
             </h1>
+            <p className="text-xs text-slate-500 font-medium mt-1">
+              طراحی کاملاً ساده، منطقی و به ترتیب، بدون سردرگمی و پیچیدگی جهت ارائه شفاف و ارزیابی عینی
+            </p>
           </div>
 
-          <div className="flex items-center gap-2 text-xs font-bold text-slate-500 bg-slate-50 px-3.5 py-2 rounded-2xl border border-slate-200/80 self-start md:self-auto">
-            <span>مرحله فعلی:</span>
+          <div className="flex items-center gap-2 text-xs font-bold text-slate-600 bg-slate-50 px-3.5 py-2 rounded-2xl border border-slate-200/80 self-start md:self-auto shrink-0">
+            <span>مرحله انتخابی:</span>
             <span className="text-slate-900 font-black">
-              {visibleTabs[activeIndex]?.step} - {visibleTabs[activeIndex]?.title}
+              {ORDERED_TABS[activeIndex]?.stepNumber} - {ORDERED_TABS[activeIndex]?.title}
             </span>
           </div>
         </div>
 
-        {/* Clean Workflow Stepper / Tabs (3 tabs for Employee, 5 for Evaluator/Manager) */}
-        <div className={`grid gap-2.5 ${isEmployee ? 'grid-cols-1 sm:grid-cols-3' : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-5'}`}>
-          {visibleTabs.map((tab, idx) => {
+        {/* 3-Step Clear Sequential Stepper + 1 Advanced Optional Tab */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          {ORDERED_TABS.map((tab, idx) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
             const isCompleted = idx < activeIndex;
@@ -137,41 +157,51 @@ export function CompetencyManagementPage() {
             return (
               <button
                 key={tab.id}
+                type="button"
                 onClick={() => handleTabSwitch(tab.id)}
-                className={`text-right p-3.5 rounded-2xl border transition-all flex flex-col justify-between gap-2.5 group relative cursor-pointer ${
+                className={`text-right p-4 rounded-2xl border transition-all flex flex-col justify-between gap-3 group relative cursor-pointer ${
                   isActive
                     ? 'bg-slate-900 text-white border-slate-900 shadow-md ring-2 ring-slate-900/10'
-                    : 'bg-slate-50 hover:bg-slate-100/90 border-slate-200/80 text-slate-700 hover:border-slate-300'
+                    : 'bg-slate-50/70 hover:bg-slate-100/90 border-slate-200/90 text-slate-700 hover:border-slate-300'
                 }`}
               >
                 <div className="flex items-center justify-between w-full">
-                  <span className={`text-[10px] font-black px-2 py-0.5 rounded-md ${
-                    isActive
-                      ? 'bg-white/20 text-white'
-                      : isCompleted
-                        ? 'bg-emerald-100 text-emerald-800'
-                        : 'bg-slate-200/80 text-slate-600'
-                  }`}>
-                    {tab.step}
+                  <span
+                    className={`text-[11px] font-black px-2.5 py-0.5 rounded-lg ${
+                      isActive
+                        ? 'bg-white/20 text-white'
+                        : isCompleted
+                        ? 'bg-emerald-100 text-emerald-800 font-black'
+                        : 'bg-slate-200/90 text-slate-600'
+                    }`}
+                  >
+                    {isCompleted ? `✓ ${tab.stepNumber}` : tab.stepNumber}
                   </span>
 
-                  <div className={`w-7 h-7 rounded-xl flex items-center justify-center transition ${
-                    isActive
-                      ? 'bg-white/20 text-white'
-                      : 'bg-white text-slate-500 group-hover:text-indigo-600 border border-slate-200'
-                  }`}>
-                    <Icon className="w-3.5 h-3.5" />
+                  <div
+                    className={`w-8 h-8 rounded-xl flex items-center justify-center transition ${
+                      isActive
+                        ? 'bg-white/20 text-white'
+                        : 'bg-white text-slate-600 group-hover:text-indigo-600 border border-slate-200 shadow-2xs'
+                    }`}
+                  >
+                    <Icon className="w-4 h-4" />
                   </div>
                 </div>
 
                 <div>
-                  <h3 className={`text-xs font-black line-clamp-1 ${isActive ? 'text-white' : 'text-slate-900'}`}>
+                  <h3 className={`text-xs md:text-sm font-black line-clamp-1 ${isActive ? 'text-white' : 'text-slate-900'}`}>
                     {tab.title}
                   </h3>
-                  <p className={`text-[10px] font-medium mt-0.5 line-clamp-1 ${isActive ? 'text-slate-300' : 'text-slate-500'}`}>
+                  <p className={`text-[11px] font-medium mt-0.5 line-clamp-1 ${isActive ? 'text-slate-300' : 'text-slate-500'}`}>
                     {tab.shortDesc}
                   </p>
                 </div>
+
+                {/* Progress bar line at the bottom of active tab */}
+                {isActive && (
+                  <div className="w-full h-1 bg-indigo-500 rounded-full mt-1" />
+                )}
               </button>
             );
           })}
@@ -179,16 +209,46 @@ export function CompetencyManagementPage() {
 
       </div>
 
-      {/* Tab Content Container */}
+      {/* Main Sequential Step Content */}
       <div className="transition-all duration-200">
-        {activeTab === 'jobs' && <JobManagementTab readOnly={isEmployee} />}
-        {activeTab === 'mapping' && <CompetencyMappingTab readOnly={isEmployee} />}
-        {activeTab === 'matrix' && <CompetencyMatrixTab readOnly={isEmployee} />}
-        {!isEmployee && activeTab === 'evaluator-matrix' && <EvaluatorCompetencyMatrixTab />}
-        {!isEmployee && activeTab === 'evaluation' && <EmployeeEvaluationTab />}
+        {/* Step 1: Job Descriptions & Duties */}
+        {activeTab === 'jobs' && (
+          <SimpleJobDescriptionsStep
+            selectedJobId={selectedJobId}
+            onSelectJob={handleSelectJob}
+            onNextStep={() => handleTabSwitch('competencies')}
+            readOnly={isEmployee}
+          />
+        )}
+
+        {/* Step 2: Extracted Competencies */}
+        {activeTab === 'competencies' && (
+          <SimpleExtractedCompetenciesStep
+            selectedJobId={selectedJobId}
+            onSelectJob={handleSelectJob}
+            onNextStep={() => handleTabSwitch('kpis')}
+            onPrevStep={() => handleTabSwitch('jobs')}
+            readOnly={isEmployee}
+          />
+        )}
+
+        {/* Step 3: Related Performance Evaluation Indicators (KPIs) */}
+        {activeTab === 'kpis' && (
+          <SimplePerformanceIndicatorsStep
+            selectedJobId={selectedJobId}
+            onSelectJob={handleSelectJob}
+            onPrevStep={() => handleTabSwitch('competencies')}
+            onGoToAdvanced={() => handleTabSwitch('advanced')}
+            readOnly={isEmployee}
+          />
+        )}
+
+        {/* Optional Advanced Matrix and Reports */}
+        {activeTab === 'advanced' && (
+          <AdvancedMatrixSection readOnly={isEmployee} />
+        )}
       </div>
-      
+
     </div>
   );
 }
-
